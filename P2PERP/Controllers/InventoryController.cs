@@ -2,10 +2,14 @@
 using P2PLibray.Inventory;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
+using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Mail;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
@@ -17,8 +21,19 @@ namespace P2PERP.Controllers
     {
         BALInventory bal = new BALInventory();
         // GET: InventoryP2P
+        [Route("Inventory/InventoryDashboard")]
+        [HttpGet]
+        [DisplayName("Dashboard")]
         public ActionResult Index()
         {
+            var RoleId = Convert.ToInt32(Session["RoleId"]);
+
+            switch (RoleId)
+            {
+                case 2: return View();
+                case 3: return RedirectToAction("ReceiveMaterialDRB");
+                case 4: return RedirectToAction("ShowStocklevelMHB");
+            }
             return View();
         }
 
@@ -51,6 +66,55 @@ namespace P2PERP.Controllers
             }
             return View();
         }
+
+
+        [Route("Inventory/SendMail")]
+        [HttpGet]
+        public ActionResult SendMailHSB()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public ActionResult SendMailHSB(HttpPostedFileBase attachment, string toEmail, string subject, string messageBody)
+        {
+            try
+            {
+                string fromEmail = System.Configuration.ConfigurationManager.AppSettings["SenderEmail"];
+                string password = System.Configuration.ConfigurationManager.AppSettings["SenderPassword"];
+
+                MailMessage mail = new MailMessage();
+                mail.From = new MailAddress(fromEmail);
+                mail.To.Add(toEmail);
+                mail.Subject = subject;
+                mail.Body = messageBody;
+                mail.IsBodyHtml = true;
+
+                // Add attachment if provided
+                if (attachment != null && attachment.ContentLength > 0)
+                {
+                    string fileName = Path.GetFileName(attachment.FileName);
+                    mail.Attachments.Add(new Attachment(attachment.InputStream, fileName));
+                }
+
+                SmtpClient smtp = new SmtpClient("smtp.gmail.com")
+                {
+                    Port = 587,
+                    Credentials = new NetworkCredential(fromEmail, password),
+                    EnableSsl = true
+                };
+
+                smtp.Send(mail);
+                ViewBag.Status = "Email sent successfully!";
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Status = "Error: " + ex.Message;
+            }
+
+            return View();
+        }
+
         #endregion
 
         #region Rutik
@@ -126,11 +190,19 @@ namespace P2PERP.Controllers
             var result = await bal.GetTotalBinHSB();
             return Json(result, JsonRequestBehavior.AllowGet);
         }
+
+        // Get inventory dashboard metrics (Value-based)
+        public async Task<JsonResult> GetInventoryDashboardMetricsHSB(DateTime? fromDate, DateTime? toDate, string category)
+        {
+            var data = await bal.GetInventoryDashboardMetricsHSB(fromDate, toDate, category);
+            return Json(data, JsonRequestBehavior.AllowGet);
+        }
         #endregion
 
         #region Divyani
 
         // Loads the Receive Material view
+        [DisplayName("Receive Material")]
         public ActionResult ReceiveMaterialDRB()
         {
             return View();
@@ -155,8 +227,8 @@ namespace P2PERP.Controllers
                     InventoryDRB ReceiveMaterial = new InventoryDRB
                     {
                         GRNCode = dr["GRNCode"].ToString(),
+                        SupplierName = dr["SupplierName"].ToString(),
                         AddedDate = Convert.ToDateTime(dr["AddedDate"]).ToString("dd/MM/yyyy"),
-                        StatusName = dr["StatusName"].ToString(),
                     };
 
                     ReceiveMaterialList.Add(ReceiveMaterial);
@@ -195,6 +267,7 @@ namespace P2PERP.Controllers
 
         // Loads the Issue In-House view
         [HttpGet]
+        [DisplayName("In-House Transfer")]
         public ActionResult IssueInHouseDRB()
         {
             return View();
@@ -205,7 +278,15 @@ namespace P2PERP.Controllers
         public async Task<JsonResult> GetBinBasedOnItemDRB(string itemcode)
         {
             var bins = await bal.GetBins(itemcode);
-            return Json(bins,JsonRequestBehavior.AllowGet);
+            return Json(bins, JsonRequestBehavior.AllowGet);
+        }
+
+        // Loads the Issue In-House view
+        [HttpGet]
+        public async Task<JsonResult> GetBinNameItemDRB(string itemcode)
+        {
+            var bins = await bal.GetBinsName(itemcode);
+            return Json(bins, JsonRequestBehavior.AllowGet);
         }
 
         // Gets the list of Departments from DB and returns JSON
@@ -300,12 +381,15 @@ namespace P2PERP.Controllers
 
         // Gets the list of Bins for a given Row
         [HttpGet]
-        public async Task<JsonResult> GetBinDRB(string Rowcode)
+        public async Task<JsonResult> GetBinDRB(string RowCode, string GRNItemCode)
         {
-            List<InventoryBinDRB> grnItemsList = await bal.GetBinDRB(Rowcode);
-
-            return Json(grnItemsList, JsonRequestBehavior.AllowGet);
+            List<InventoryBinDRB> bins = await bal.GetBinDRB(RowCode, GRNItemCode);
+            return Json(bins, JsonRequestBehavior.AllowGet);
         }
+
+
+        // Gets the list of Bins for a given Row
+
 
         // Gets the Issue In-House items based on Status Id
         [HttpGet]
@@ -375,12 +459,16 @@ namespace P2PERP.Controllers
             }
         }
 
+
+
+
         #endregion
 
         #region Lavmesh
         // GET: InventoryP2P
 
         //Stock Cheak Main View
+        [DisplayName("Stock Check")]
         public Task<ActionResult> StocksCheakLM()
         {
 
@@ -388,18 +476,21 @@ namespace P2PERP.Controllers
         }
 
         //Current Stock Partial View
+        [DisplayName("Current Stock")]
         public ActionResult _currentStocksLM()
         {
             return View();
         }
 
         //NonMoving Stock Partial View
+        [DisplayName("Dead Stock")]
         public ActionResult _nonMovingSLM()
         {
             return View();
         }
 
         //Quality Cheak Stock Partial View
+        [DisplayName("Quality Check")]
         public ActionResult _qualityCheakLM()
         {
             return View();
@@ -460,6 +551,7 @@ namespace P2PERP.Controllers
         /// Requirement Master main view
         /// Displays list of item requirements
         /// </summary>
+        [DisplayName("Requirement Master")]
         public ActionResult ReqMasterRHK()
         {
             return View();
@@ -507,16 +599,14 @@ namespace P2PERP.Controllers
         /// <summary>
         /// Retrieves detailed list of items for a specific requirement
         /// </summary>
-        /// <param name="id">Stock Requirement ID</param>
-        public async Task<ActionResult> ViewReqMasterListRHK(int id)
+
+        public async Task<ActionResult> ViewReqMasterListRHK()
         {
             try
             {
-                // Debug logging
-                Console.WriteLine($"ViewReqMasterList called with id: {id}");
 
                 // Get detailed requirement data from business layer
-                DataSet ds = await bal.ViewReqMasterRHK(id);
+                DataSet ds = await bal.ViewReqMasterRHK();
 
                 Console.WriteLine($"DataSet tables count: {ds?.Tables?.Count}");
                 if (ds != null && ds.Tables.Count > 0)
@@ -538,7 +628,9 @@ namespace P2PERP.Controllers
                             Description = r["Description"].ToString(),
                             RequiredQuantity = r["RequiredQuantity"].ToString(),
                             RequiredDate = Convert.ToDateTime(r["RequiredDate"]),
-                            RequestType = r["RequestType"].ToString()
+                            RequestType = r["RequestType"].ToString(),
+                            AddedBy = r["FullName"].ToString(),
+                            AddedDate = Convert.ToDateTime(r["AddedDate"])
                         });
                     }
                 }
@@ -565,6 +657,7 @@ namespace P2PERP.Controllers
         /// Stock Master main view
         /// Displays list of material requirement plans
         /// </summary>
+        [DisplayName("Stock Master")]
         public ActionResult StockMasterRHK()
         {
             return View();
@@ -640,10 +733,10 @@ namespace P2PERP.Controllers
             // Return JSON data for client-side display
             return Json(new { data = reqlist }, JsonRequestBehavior.AllowGet);
         }
-    #endregion Rushikesh
+        #endregion Rushikesh
 
         #region Akash
-    
+
         /// <summary>
         /// Gets current stock report data (JSON result).
         /// </summary>
@@ -695,6 +788,7 @@ namespace P2PERP.Controllers
         /// Loads Received Material Report view.
         /// </summary>
         [HttpGet]
+        [DisplayName("Received Material Reports")]
         public ActionResult ReceivedMaterialReportAMG()
         {
             try
@@ -727,6 +821,7 @@ namespace P2PERP.Controllers
         /// <summary>
         /// Loads Inhouse Transfer Report view.
         /// </summary>
+        [DisplayName("In-House Transfer Reports")]
         public ActionResult InhouseTransferReportVAMG()
         {
             try
@@ -758,6 +853,7 @@ namespace P2PERP.Controllers
 
         #region Saurabh
         // GET: InventoryP2P
+        [DisplayName("Wherehouse Master")]
         public ActionResult WHIndex()
         {
             return View();
@@ -791,8 +887,12 @@ namespace P2PERP.Controllers
 
                     if (Success)
                         return Json(new { success = true, message = Message, newId = NewId });
-                    else
-                        return Json(new { success = false, message = Message });
+
+                    // ✅ If duplicate name detected
+                    if (Message.Contains("already"))
+                        return Json(new { success = false, message = Message, field = "WarehouseName" });
+
+                    return Json(new { success = false, message = Message });
                 }
                 return Json(new { success = false, message = "Invalid data" });
             }
@@ -801,6 +901,7 @@ namespace P2PERP.Controllers
                 return Json(new { success = false, message = ex.Message });
             }
         }
+
 
 
 
@@ -829,8 +930,12 @@ namespace P2PERP.Controllers
             {
                 if (ModelState.IsValid)
                 {
-                    await bal.UpdateWarehouseAsyncSK(model);
-                    return Json(new { success = true, message = "Warehouse updated successfully" });
+                    var (Success, Message) = await bal.UpdateWarehouseAsyncSK(model);
+
+                    if (Success)
+                        return Json(new { success = true, message = Message });
+
+                    return Json(new { success = false, message = Message, field = "WarehouseName" });
                 }
                 return Json(new { success = false, message = "Invalid data" });
             }
@@ -839,6 +944,7 @@ namespace P2PERP.Controllers
                 return Json(new { success = false, message = ex.Message });
             }
         }
+
         //        View Warehouse Details
         [HttpGet]
         public async Task<ActionResult> ViewWarehouseSK(int id)
@@ -962,6 +1068,7 @@ namespace P2PERP.Controllers
         {
             model.AddedBy = Session["StaffCode"].ToString();
             model.AddedDate = DateTime.Now;
+
             try
             {
                 var result = await bal.SaveRackAsyncSK(model);
@@ -981,6 +1088,7 @@ namespace P2PERP.Controllers
                 }, JsonRequestBehavior.AllowGet);
             }
         }
+
         //    THIS IS USED FOR VIEW AND UPDATE USING ID    RACK
         public async Task<ActionResult> GetRackByIdSKK(int id)
         {
@@ -1183,9 +1291,23 @@ namespace P2PERP.Controllers
             model.AddedDate = DateTime.Now;
 
             System.Diagnostics.Debug.WriteLine("Description from UI: " + model.Descriptions);
+
             var (success, message) = await bal.SaveBinAsyncSK(model);
-            return Json(new { success, message });
+
+            // ✅ If message indicates validation or constraint issue, mark as failure
+            if (message.Contains("Bin with same name") ||
+                message.Contains("Max Quantity") ||
+                message.Contains("Cannot update") ||
+                message.Contains("required") ||
+                !success)
+            {
+                return Json(new { success = false, message });
+            }
+
+            // ✅ Otherwise treat as success
+            return Json(new { success = true, message });
         }
+
 
 
         //   THIS IS USED BY UPDATE AND VIEW FOR BIN 
@@ -1259,15 +1381,12 @@ namespace P2PERP.Controllers
             {
                 try
                 {
-                    bool isSaved = await bal.AddSectionAsyncSK(model);
-                    if (isSaved)
-                    {
-                        return Json(new { success = true, message = "Section added successfully!" });
-                    }
-                    else
-                    {
-                        return Json(new { success = false, message = "Failed to save section." });
-                    }
+                    var (Success, Message) = await bal.AddSectionAsyncSK(model);
+
+                    if (Success)
+                        return Json(new { success = true, message = Message });
+
+                    return Json(new { success = false, message = Message, field = "SectionName" });
                 }
                 catch (Exception ex)
                 {
@@ -1276,6 +1395,7 @@ namespace P2PERP.Controllers
             }
             return Json(new { success = false, message = "Invalid data." });
         }
+
 
         //    THIS IS USED BY UPDATE AND VIEW BY USING ID 
         [HttpGet]
@@ -1306,21 +1426,19 @@ namespace P2PERP.Controllers
         {
             try
             {
-                var result = await bal.UpdateSectionAsyncSK(model);
-                if (result)
-                {
-                    return Json(new { success = true, message = "Section updated successfully!" });
-                }
-                else
-                {
-                    return Json(new { success = false, message = "Failed to update section." });
-                }
+                var (Success, Message) = await bal.UpdateSectionAsyncSK(model);
+
+                if (Success)
+                    return Json(new { success = true, message = Message });
+
+                return Json(new { success = false, message = Message, field = "SectionName" });
             }
             catch (Exception ex)
             {
                 return Json(new { success = false, message = ex.Message });
             }
         }
+
 
         //  DELETE SECTION
 
@@ -1351,6 +1469,7 @@ namespace P2PERP.Controllers
 
         #region Mayur
         // Loads the stock level view for MHB location.
+        [DisplayName("Stock Level")]
         public ActionResult ShowStocklevelMHB()
 
         {
@@ -1394,6 +1513,7 @@ namespace P2PERP.Controllers
         }
 
         // Loads the Item Stock Refill (ISR) view for MHB.
+        [DisplayName("Requisition Analysis")]
         public ActionResult ISRStockMHB()
         {
             return View();
@@ -1428,6 +1548,7 @@ namespace P2PERP.Controllers
         }
 
         // Loads the Just-In-Time (JIT) stock view for MHB.
+        [DisplayName("Just In Time")]
         public ActionResult JITStockMHB()
         {
             return View();
@@ -1474,6 +1595,7 @@ namespace P2PERP.Controllers
                         ItemId = itemId,
                         ItemCode = row["ItemCode"]?.ToString(),
                         Description = row["Description"]?.ToString(),
+                        ReorderQuantity = row["ReorderQuantity"]?.ToString(),
                         UOMName = row["UOMName"]?.ToString()
                     };
                 }
@@ -1493,6 +1615,7 @@ namespace P2PERP.Controllers
         }
 
         // Loads the MRP new planning view for MHB.
+        [DisplayName("Material Required Planning")]
         public ActionResult NewplanMHB()
         {
             return View();
@@ -1508,6 +1631,7 @@ namespace P2PERP.Controllers
         }
 
         // Loads the manager approval dashboard view.
+        [DisplayName("Material Required Planning Approval")]
         public ActionResult ManagerApprovalMHB()
         {
             return View();
@@ -1745,13 +1869,16 @@ namespace P2PERP.Controllers
                     itemcode = updateitem.ItemCode,
                     name = updateitem.ItemName,
                     category = updateitem.ItemCategoryId,
+                    categoryname = updateitem.ItemCategory,
                     status = updateitem.ItemStatusId,
+                    Status = updateitem.Status,
                     uom = updateitem.UOMId,
                     descri = updateitem.Description,
                     unitR = updateitem.UnitRates,
                     recQ = updateitem.RecorderQuantity,
                     minQ = updateitem.MinQuantity,
                     itemby = updateitem.ItemMakeId,
+                    itemmake = updateitem.ItemMake,
                     exp = updateitem.ExpiryDays,
                     isqua = updateitem.ISQualityBit,
                     hsn = updateitem.HSNCode,
@@ -1807,10 +1934,7 @@ namespace P2PERP.Controllers
             }
         }
 
-        // Fix for CS0029: Cannot implicitly convert type 'void' to 'int'
-        // The method `AddItemOJ` in `BALInventory` has a return type of `void`.
-        // Update the code to remove the assignment to `result` since the method does not return a value.
-
+        // Adds or updates item details
         public async Task<ActionResult> AddItemOJ(InventoryOJ objn)
         {
             objn.StaffCode = Session["StaffCode"].ToString();
@@ -1883,6 +2007,8 @@ namespace P2PERP.Controllers
         }
 
 
+        // Main Category View
+        [DisplayName("Item Master")]
         public ActionResult CategorySSG()
         {
             return View();
@@ -1957,6 +2083,8 @@ namespace P2PERP.Controllers
             return Json(new { success = true, message = "Category created successfully." });
         }
 
+
+
         // Update Category POST
         [HttpPost]
         public async Task<JsonResult> UpdateCategorySSG(InventorySSG objCategory)
@@ -1984,6 +2112,8 @@ namespace P2PERP.Controllers
             var data = await bal.ALLTaxRatesSSG();
             return Json(data, JsonRequestBehavior.AllowGet);
         }
+
+
 
 
 
