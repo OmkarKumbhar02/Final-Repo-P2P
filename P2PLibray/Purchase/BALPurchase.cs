@@ -439,8 +439,16 @@ namespace P2PLibray.Purchase
                             Description = row["Description"].ToString(),
                             HasUnregisteredVendors = row.Table.Columns.Contains("HasUnregisteredVendors") && row["HasUnregisteredVendors"] != DBNull.Value
                                 ? Convert.ToInt32(row["HasUnregisteredVendors"])
+                                : 0,
+
+ AnyVendor = row.Table.Columns.Contains("HasRegisteredQuotation") && row["HasRegisteredQuotation"] != DBNull.Value
+                                ? Convert.ToInt32(row["HasRegisteredQuotation"])
                                 : 0
+
+
                         });
+
+
                     }
                 }
                 return items;
@@ -797,7 +805,8 @@ namespace P2PLibray.Purchase
                             Quantity = row["Quantity"] == DBNull.Value ? 0 : Convert.ToDecimal(row["Quantity"]),
                             CostPerUnit = row["CostPerUnit"] == DBNull.Value ? 0 : Convert.ToDecimal(row["CostPerUnit"]),
                             Discount = row["Discount"] == DBNull.Value ? 0 : Convert.ToDecimal(row["Discount"]),
-                            GST = row["GSTPct"] == DBNull.Value ? 0 : Convert.ToDecimal(row["GSTPct"])
+                            GST = row["GSTPct"] == DBNull.Value ? 0 : Convert.ToDecimal(row["GSTPct"]),
+                           // ShippingCharges= row["ShippingCharges"]== DBNull.Value ? 0 : Convert.ToDecimal(row["ShippingCharges"])
                         });
                     }
                 }
@@ -924,7 +933,10 @@ namespace P2PLibray.Purchase
                             Quantity = row.Table.Columns.Contains("Quantity") && row["Quantity"] != DBNull.Value ? Convert.ToDecimal(row["Quantity"]) : 0m,
                             CostPerUnit = row.Table.Columns.Contains("CostPerUnit") && row["CostPerUnit"] != DBNull.Value ? Convert.ToDecimal(row["CostPerUnit"]) : 0m,
                             Discount = row.Table.Columns.Contains("Discount") && row["Discount"] != DBNull.Value ? Convert.ToDecimal(row["Discount"]) : 0m,
-                            GSTPct = row.Table.Columns.Contains("GSTPct") && row["GSTPct"] != DBNull.Value ? Convert.ToDecimal(row["GSTPct"]) : 0m
+                            GSTPct = row.Table.Columns.Contains("GSTPct") && row["GSTPct"] != DBNull.Value ? Convert.ToDecimal(row["GSTPct"]) : 0m,
+                        ShippingCharges =row.Table.Columns.Contains("ShippingCharges") && row["ShippingCharges"] != DBNull.Value ? Convert.ToDecimal(row["ShippingCharges"]) : 0m
+
+
                         });
                     }
                 }
@@ -1131,6 +1143,9 @@ namespace P2PLibray.Purchase
                 return false;
             }
         }
+
+
+
         #endregion Vaibhavi
 
         #region Akash
@@ -1859,6 +1874,10 @@ namespace P2PLibray.Purchase
             para.Add("@Flag", "GetQuotationAllDatatoCreatePOOK");
             para.Add("@RegisterQuotationCode", RegisterQuotationCode);
             DataSet ds = await obj.ExecuteStoredProcedureReturnDS("PurchaseProcedure", para);
+            for (int i = 0; i < ds.Tables.Count; i++)
+            {
+                Console.WriteLine($"Table {i}: {ds.Tables[i].Rows.Count} rows");
+            }
             return ds;
         }
 
@@ -2191,6 +2210,7 @@ namespace P2PLibray.Purchase
                         p.AddedDate = Convert.ToDateTime(row["AddedDate"].ToString());
                         p.AddedDateString = p.AddedDate.ToString("dd-MM-yyyy");
                         p.FullName = row["FullName"].ToString();
+                        p.RequiredDate = Convert.ToDateTime(row["RequiredDate"].ToString());
                         //p.StatusName = row["StatusName"].ToString();
                         p.Priority = row["Priority"].ToString();
                         lst.Add(p);
@@ -2272,6 +2292,7 @@ namespace P2PLibray.Purchase
                         p.PRCode = row["PRCode"].ToString();
                         p.AddedDate = Convert.ToDateTime(row["AddedDate"].ToString());
                         p.AddedDateString = p.AddedDate.ToString("dd-MM-yyyy");
+                        p.RequiredDate = Convert.ToDateTime(row["RequiredDate"].ToString());
                         //p.StatusName = row["StatusName"].ToString();
                         p.ApprovedRejectedDate = Convert.ToDateTime(row["ApproveRejectedDate"].ToString());
                         p.ApprovedRejectedDateString = p.ApprovedRejectedDate.ToString("dd-MM-yyyy");
@@ -2576,7 +2597,8 @@ namespace P2PLibray.Purchase
                         p.VenderName = row["VenderName"].ToString();
                         p.CompanyName = row["CompanyName"].ToString();
                         p.TotalAmount = Convert.ToDecimal(row["TotalAmount"].ToString());
-
+                        p.ExpectedDate = Convert.ToDateTime(row["VendorDeliveryDate"].ToString());
+                        p.ExpectedDateString = p.ExpectedDate.ToString("dd-MM-yyyy");
 
                         lst.Add(p);
                     }
@@ -2655,9 +2677,13 @@ namespace P2PLibray.Purchase
 
                         p.POCode = row["POCode"].ToString();
                         p.AddedDate = Convert.ToDateTime(row["PODate"].ToString());
+                        p.RQCode = row["RegisterQuotationCode"].ToString();
+                        p.ApprovedRejectedDate = Convert.ToDateTime(row["ApprovedRejectedDate"].ToString());
+                        p.ApprovedRejectedDateString = p.ApprovedRejectedDate.ToString("dd-MM-yyyy");
                         p.AddedDateString = p.AddedDate.ToString("dd-MM-yyyy");
                         p.TotalAmount = Convert.ToDecimal(row["POCost"].ToString());
                         p.FullName = row["CreatedBy"].ToString();
+                        p.Address = row["BillingAddress"].ToString();
 
                         lst.Add(p);
 

@@ -512,6 +512,12 @@ namespace P2PERP.Controllers
             return Json(data, JsonRequestBehavior.AllowGet);
         }
 
+        public ActionResult ApprovedPOsPartialVNK()
+        {
+            return PartialView("_ApprovedPOsPartialVNK"); // returns the partial view
+        }
+
+
 
         //nur
 
@@ -2073,7 +2079,7 @@ namespace P2PERP.Controllers
             {
                 case 5: return RedirectToAction("CreatePRADDItemPSM");
                 case 6: return RedirectToAction("QuotationSJ");
-                case 7: return RedirectToAction("RegisterQuotationVNK");
+                case 7: return RedirectToAction("ShowAllRFQsVNK");
                 case 8: return view();
                 case 9: return RedirectToAction("SelectedQuotationListShowOK");
             }
@@ -2555,7 +2561,7 @@ namespace P2PERP.Controllers
                         SrNo = dr["SrNo"].ToString(),
                         PRCode = dr["PRCode"].ToString(),
                         RFQCode = dr["RFQCode"]?.ToString(),
-                        RequiredDate = dr["ExpectedDate"]?.ToString(),
+                        RequiredDate = dr["ExpectedDate"].ToString(),
                         Description = dr["Description"]?.ToString(),
                         Status = dr["StatusName"]?.ToString()
                     });

@@ -19,6 +19,14 @@ namespace P2PERP.Controllers
         // GET: InventoryP2P
         public ActionResult Index()
         {
+            var RoleId = Convert.ToInt32(Session["RoleId"]);
+
+            switch (RoleId)
+            {
+                case 2: return View();
+                case 3: return RedirectToAction("ReceiveMaterialDRB");
+                case 4: return RedirectToAction("ShowStocklevelMHB");
+            }
             return View();
         }
 
@@ -156,7 +164,6 @@ namespace P2PERP.Controllers
                     {
                         GRNCode = dr["GRNCode"].ToString(),
                         AddedDate = Convert.ToDateTime(dr["AddedDate"]).ToString("dd/MM/yyyy"),
-                        StatusName = dr["StatusName"].ToString(),
                     };
 
                     ReceiveMaterialList.Add(ReceiveMaterial);
@@ -300,12 +307,12 @@ namespace P2PERP.Controllers
 
         // Gets the list of Bins for a given Row
         [HttpGet]
-        public async Task<JsonResult> GetBinDRB(string Rowcode)
+        public async Task<JsonResult> GetBinDRB(string RowCode, string GRNItemCode)
         {
-            List<InventoryBinDRB> grnItemsList = await bal.GetBinDRB(Rowcode);
-
-            return Json(grnItemsList, JsonRequestBehavior.AllowGet);
+            List<InventoryBinDRB> bins = await bal.GetBinDRB(RowCode, GRNItemCode);
+            return Json(bins, JsonRequestBehavior.AllowGet);
         }
+
 
         // Gets the Issue In-House items based on Status Id
         [HttpGet]
@@ -507,16 +514,14 @@ namespace P2PERP.Controllers
         /// <summary>
         /// Retrieves detailed list of items for a specific requirement
         /// </summary>
-        /// <param name="id">Stock Requirement ID</param>
-        public async Task<ActionResult> ViewReqMasterListRHK(int id)
+       
+        public async Task<ActionResult> ViewReqMasterListRHK()
         {
             try
             {
-                // Debug logging
-                Console.WriteLine($"ViewReqMasterList called with id: {id}");
-
+               
                 // Get detailed requirement data from business layer
-                DataSet ds = await bal.ViewReqMasterRHK(id);
+                DataSet ds = await bal.ViewReqMasterRHK();
 
                 Console.WriteLine($"DataSet tables count: {ds?.Tables?.Count}");
                 if (ds != null && ds.Tables.Count > 0)
@@ -538,7 +543,9 @@ namespace P2PERP.Controllers
                             Description = r["Description"].ToString(),
                             RequiredQuantity = r["RequiredQuantity"].ToString(),
                             RequiredDate = Convert.ToDateTime(r["RequiredDate"]),
-                            RequestType = r["RequestType"].ToString()
+                            RequestType = r["RequestType"].ToString(),
+                            AddedBy = r["FullName"].ToString(),
+                            AddedDate = Convert.ToDateTime(r["AddedDate"])
                         });
                     }
                 }
@@ -1474,6 +1481,7 @@ namespace P2PERP.Controllers
                         ItemId = itemId,
                         ItemCode = row["ItemCode"]?.ToString(),
                         Description = row["Description"]?.ToString(),
+                        ReorderQuantity = row["ReorderQuantity"]?.ToString(),
                         UOMName = row["UOMName"]?.ToString()
                     };
                 }
@@ -1807,10 +1815,7 @@ namespace P2PERP.Controllers
             }
         }
 
-        // Fix for CS0029: Cannot implicitly convert type 'void' to 'int'
-        // The method `AddItemOJ` in `BALInventory` has a return type of `void`.
-        // Update the code to remove the assignment to `result` since the method does not return a value.
-
+        // Adds or updates item details
         public async Task<ActionResult> AddItemOJ(InventoryOJ objn)
         {
             objn.StaffCode = Session["StaffCode"].ToString();
@@ -1883,6 +1888,7 @@ namespace P2PERP.Controllers
         }
 
 
+        // Main Category View
         public ActionResult CategorySSG()
         {
             return View();
@@ -1985,6 +1991,8 @@ namespace P2PERP.Controllers
             return Json(data, JsonRequestBehavior.AllowGet);
         }
 
+
+       
 
 
         #endregion Om and Sayali
